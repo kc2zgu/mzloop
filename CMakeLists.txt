@@ -15,3 +15,5 @@ add_executable("mzloop" ${SRC})
 include_directories(${JSON_INCLUDES})
 include_directories(${Boost_INCLUDE_DIRS})
 target_link_libraries("mzloop" PkgConfig::JSON PkgConfig::MOSQ ${Boost_LIBRARIES})
+
+add_executable("mzsched" "mzsched.cc" "Schedule.cc" "Log.cc")

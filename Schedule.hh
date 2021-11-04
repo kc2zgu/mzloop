@@ -11,8 +11,15 @@ namespace mzloop
 
     struct week_time
     {
+        week_time(int day, int seconds)
+            :day{day}, seconds{seconds} {}
         int day;
         int seconds;
+
+        bool operator<(const week_time &other) const
+        {
+            return day < other.day || (day == other.day && seconds < other.seconds);
+        }
     };
 
     enum SchedInterpolate
@@ -26,6 +33,8 @@ namespace mzloop
 
     struct schedule_point
     {
+        schedule_point(week_time wt, double sv, SchedInterpolate interp)
+            :wt{wt}, sv{sv}, interp{interp} {}
         struct week_time wt;
         double sv;
         SchedInterpolate interp;
@@ -38,19 +47,19 @@ namespace mzloop
         ~Schedule();
 
         void SetDefaultInterpolate(SchedInterpolate new_interpolate);
-        void AddPoint(week_time wt, double sv, SchedInterpolate interpolate = SchedDefault);
-        void RemovePoint(week_time wt);
+        void AddPoint(week_time &wt, double sv, SchedInterpolate interpolate = SchedDefault);
+        void RemovePoint(week_time &wt);
         void Clear();
         void LoadSchedule(std::string file);
 
         void SetOverride(double override_sv);
         void ClearOverride() {current_override.reset();}
-        const std::optional<schedule_point>& GetOverride() const {return current_override;}
+        const schedule_point *GetOverride() const {return current_override ? &*current_override : nullptr;}
 
-        const std::optional<schedule_point>& GetPointExact(week_time wt) const;
-        const std::optional<schedule_point>& GetPointPrev(week_time wt) const;
-        const std::optional<schedule_point>& GetPointNext(week_time wt) const;
-        double GetSv(week_time wt) const;
+        const schedule_point *GetPointExact(week_time &wt) const;
+        const schedule_point *GetPointPrev(week_time &wt) const;
+        const schedule_point *GetPointNext(week_time &wt) const;
+        double GetSv(week_time &wt) const;
 
     protected:
         std::map<week_time, schedule_point> schedule_points;
