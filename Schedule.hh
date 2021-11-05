@@ -20,6 +20,11 @@ namespace mzloop
         {
             return day < other.day || (day == other.day && seconds < other.seconds);
         }
+
+        int raw_seconds() const
+        {
+            return day*86400 + seconds;
+        }
     };
 
     enum SchedInterpolate
@@ -47,19 +52,20 @@ namespace mzloop
         ~Schedule();
 
         void SetDefaultInterpolate(SchedInterpolate new_interpolate);
-        void AddPoint(week_time &wt, double sv, SchedInterpolate interpolate = SchedDefault);
-        void RemovePoint(week_time &wt);
+        void AddPoint(const week_time &wt, double sv, SchedInterpolate interpolate = SchedDefault);
+        void RemovePoint(const week_time &wt);
         void Clear();
         void LoadSchedule(std::string file);
+        void SetRamRate(double newrate) {ramp_rate = newrate;}
 
         void SetOverride(double override_sv);
         void ClearOverride() {current_override.reset();}
         const schedule_point *GetOverride() const {return current_override ? &*current_override : nullptr;}
 
-        const schedule_point *GetPointExact(week_time &wt) const;
-        const schedule_point *GetPointPrev(week_time &wt) const;
-        const schedule_point *GetPointNext(week_time &wt) const;
-        double GetSv(week_time &wt) const;
+        const schedule_point *GetPointExact(const week_time &wt) const;
+        const schedule_point *GetPointPrev(const week_time &wt) const;
+        const schedule_point *GetPointNext(const week_time &wt) const;
+        double GetSv(const week_time &wt) const;
 
     protected:
         std::map<week_time, schedule_point> schedule_points;
