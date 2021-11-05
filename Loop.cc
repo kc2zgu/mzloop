@@ -4,6 +4,7 @@
 #include "Log.hh"
 #include "SensorMqtt.hh"
 #include "OutputMqtt.hh"
+#include "OutputGpio.hh"
 #include <fstream>
 #include <json/json.h>
 
@@ -93,7 +94,6 @@ bool Loop::LoadConfig(const std::string config_file)
                                                        hysteresis[3].asDouble());
                             }
                         }
-                        
                     }
                 }
                 else
@@ -129,6 +129,19 @@ bool Loop::LoadConfig(const std::string config_file)
                         }
                         auto *outputobj = new OutputMqtt{name.asString(), zoneobj,
                             mqtt_agent, output["output"]["topic"].asString(), "1", "0"};
+                        AddOutput(outputobj);
+                    } else if (output["output"]["type"].asString() == "gpio")
+                    {
+                        Log::Message("GPIO output");
+                        Zone *zoneobj = GetZone(zone.asString());
+                        if (zoneobj == nullptr)
+                        {
+                            Log::Message("Zone not defined");
+                            return false;
+                        }
+                        auto *outputobj = new OutputGpio{name.asString(), zoneobj,
+                                                         output["output"]["gpio_chip"].asString(),
+                                                         output["output"]["gpio_line"].asInt()};
                         AddOutput(outputobj);
                     }
                 }

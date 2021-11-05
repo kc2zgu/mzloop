@@ -34,7 +34,7 @@
             "name": "central-heat",
             "zone": "building-heat",
             "cycle_limits": { "on_min": 120, "off_min": 600, "on_max": 1500 },
-            "output": { "type": "mqtt", "mqtt_topic": "mzloop/outputs/central-heat" }
+            "output": { "type": "gpio", "gpio_chip": "gpiochip0", "gpio_line" : 23 }
         },
         {
             "name": "room3-heater",
