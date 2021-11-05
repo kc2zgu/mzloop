@@ -95,6 +95,9 @@ Command CompositeZone::GetOutput()
         } else if (accept_weight > 0.0)
         {
             last_command = Accept;
+        } else
+        {
+            last_command = Off;
         }
         return last_command;
     }
