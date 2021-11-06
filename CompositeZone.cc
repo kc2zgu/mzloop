@@ -1,6 +1,6 @@
 #include "Zone.hh"
-
 #include "Log.hh"
+#include "Schedule.hh"
 
 using namespace mzloop;
 using namespace std;
@@ -44,14 +44,19 @@ void CompositeZone::AddMemberZone(Zone *zone)
     member_zones.push_back(zone);
 }
 
-Command CompositeZone::GetOutput()
+Command CompositeZone::GetOutput(const std::chrono::system_clock::time_point &tp)
 {
-    if (has_sv)
+    if (has_sv || (sched != nullptr))
     {
         ReadPresentValue();
         if (pv_valid)
         {
-            last_command = GetCommandForSetpoint(last_command, present_value, set_value);
+            double sv;
+            if (has_sv)
+                sv = set_value;
+            if (sched != nullptr)
+                sv = sched->GetSv(tp);
+            last_command = GetCommandForSetpoint(last_command, present_value, sv);
             return last_command;
         }
         else

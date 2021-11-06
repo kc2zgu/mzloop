@@ -6,10 +6,12 @@
 #include "OutputMqtt.hh"
 #include "OutputGpio.hh"
 #include <fstream>
+#include <chrono>
 #include <json/json.h>
 
 using namespace mzloop;
 using namespace std;
+using namespace std::chrono;
 
 Loop::Loop()
     :mqtt_agent{nullptr}
@@ -32,6 +34,16 @@ bool Loop::LoadConfig(const std::string config_file)
         Json::Value conf_root;
         config_stream >> conf_root;
 
+        auto& conf_main = conf_root["main"];
+        if (conf_main.type() == Json::objectValue)
+        {
+            Log::Message("Processing main options");
+            if (conf_main["schedule_file"].type() == Json::stringValue)
+            {
+                sched.LoadSchedule(conf_main["schedule_file"].asString());
+            }
+        }
+
         auto& conf_zones = conf_root["zones"];
         if (conf_zones.type() == Json::arrayValue) // read all zones
         {
@@ -41,22 +53,11 @@ bool Loop::LoadConfig(const std::string config_file)
                 {
                     auto& name = zone["name"];
                     Log::Message("Found zone " + name.asString());
+                    Zone *newzone;
                     if (!zone.isMember("members"))
                     {
                         Log::Message("Leaf zone");
-                        Zone *newzone = CreateLeafZone(name.asString());
-                        if (zone.isMember("setpoint"))
-                        {
-                            newzone->SetValue(zone["setpoint"].asDouble());
-                            if (zone.isMember("hysteresis") && zone["hysteresis"].type() == Json::arrayValue)
-                            {
-                                auto& hysteresis = zone["hysteresis"];
-                                newzone->SetHysteresis(hysteresis[0].asDouble(),
-                                                       hysteresis[1].asDouble(),
-                                                       hysteresis[2].asDouble(),
-                                                       hysteresis[3].asDouble());
-                            }
-                        }
+                        newzone = CreateLeafZone(name.asString());
                         if (zone.isMember("input"))
                         {
                             Log::Message("Processing input sensor config");
@@ -81,19 +82,23 @@ bool Loop::LoadConfig(const std::string config_file)
                     else
                     {
                         Log::Message("Composite zone");
-                        Zone *newzone = CreateCompositeZone(name.asString());
-                        if (zone.isMember("setpoint"))
+                        newzone = CreateCompositeZone(name.asString());
+                    }
+                    if (zone.isMember("setpoint"))
+                    {
+                        newzone->SetValue(zone["setpoint"].asDouble());
+                        if (zone.isMember("hysteresis") && zone["hysteresis"].type() == Json::arrayValue)
                         {
-                            newzone->SetValue(zone["setpoint"].asDouble());
-                            if (zone.isMember("hysteresis") && zone["hysteresis"].type() == Json::arrayValue)
-                            {
-                                auto& hysteresis = zone["hysteresis"];
-                                newzone->SetHysteresis(hysteresis[0].asDouble(),
-                                                       hysteresis[1].asDouble(),
-                                                       hysteresis[2].asDouble(),
-                                                       hysteresis[3].asDouble());
-                            }
+                            auto& hysteresis = zone["hysteresis"];
+                            newzone->SetHysteresis(hysteresis[0].asDouble(),
+                                                   hysteresis[1].asDouble(),
+                                                   hysteresis[2].asDouble(),
+                                                   hysteresis[3].asDouble());
                         }
+                    }
+                    if (zone.isMember("use_schedule"))
+                    {
+                        newzone->UseSchedule(&sched);
                     }
                 }
                 else
@@ -188,6 +193,7 @@ bool Loop::LoadConfig(const std::string config_file)
 
 void Loop::RunIteration()
 {
+    auto time_now = system_clock::now();
     Log::Message("Loop: run");
     for (auto &output: outputs)
     {
@@ -215,7 +221,7 @@ void Loop::RunIteration()
         string base = "mzloop/zones/" + name;
         auto pv = zone->GetPresentValue();
         mqtt_agent->PublishTopic(base + "/pv", pv ? to_string(*pv) : "none");
-        auto sv = zone->GetSetValue();
+        auto sv = zone->GetSetValue(time_now);
         mqtt_agent->PublishTopic(base + "/sv", sv ? to_string(*sv) : "none");
     }
 }

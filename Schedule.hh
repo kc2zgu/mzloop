@@ -66,6 +66,7 @@ namespace mzloop
         const schedule_point *GetPointPrev(const week_time &wt) const;
         const schedule_point *GetPointNext(const week_time &wt) const;
         double GetSv(const week_time &wt) const;
+        double GetSv(const std::chrono::system_clock::time_point &tp) const;
 
     protected:
         std::map<week_time, schedule_point> schedule_points;

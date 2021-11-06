@@ -51,5 +51,7 @@ int main(int argc, char **argv)
         cout << "SV=" << sv << endl;
         sv = sched.GetSv(week_time{3, 81000});
         cout << "SV=" << sv << endl;
+        sv = sched.GetSv(std::chrono::system_clock::now());
+        cout << "SV=" << sv << endl;
     }
 }

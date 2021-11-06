@@ -1,5 +1,6 @@
 #include "Zone.hh"
 #include "Log.hh"
+#include "Schedule.hh"
 
 using namespace mzloop;
 using namespace std;
@@ -10,14 +11,18 @@ LeafZone::LeafZone(const string name)
 
 }
 
-Command LeafZone::GetOutput()
+Command LeafZone::GetOutput(const std::chrono::system_clock::time_point &tp)
 {
     ReadPresentValue();
 
     if (pv_valid)
     {
+        double sv;
         if (has_sv)
-            last_command = GetCommandForSetpoint(last_command, present_value, set_value);
+            sv = set_value;
+        if (sched != nullptr)
+            sv = sched->GetSv(tp);
+        last_command = GetCommandForSetpoint(last_command, present_value, sv);
         return last_command;
     }
     else

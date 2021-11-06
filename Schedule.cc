@@ -5,6 +5,7 @@
 
 using namespace mzloop;
 using namespace std;
+using namespace std::chrono;
 
 Schedule::Schedule()
     :default_interpolate{SchedStep},
@@ -199,4 +200,14 @@ double Schedule::GetSv(const week_time &wt) const
     }
 
     return before->sv;
+}
+
+double Schedule::GetSv(const std::chrono::system_clock::time_point &tp) const
+{
+    auto tt = system_clock::to_time_t(tp);
+    auto lt = localtime(&tt);
+    int s = lt->tm_hour * 3600 + lt->tm_min * 60 + lt->tm_sec;
+    Log::Message("localtime: " + to_string(lt->tm_wday) + " " + to_string(s));
+
+    return GetSv(week_time{lt->tm_wday, s});
 }

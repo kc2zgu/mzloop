@@ -1,6 +1,7 @@
 #include "Zone.hh"
 #include "Sensor.hh"
 #include "Log.hh"
+#include "Schedule.hh"
 
 using namespace mzloop;
 using namespace std;
@@ -10,7 +11,8 @@ Zone::Zone(const string name)
      last_command{Off},
      input{nullptr},
      has_sv{false},
-     pv_valid{false}
+     pv_valid{false},
+     sched{nullptr}
 {
     Log::Message("Zone: created " + name);
 }
@@ -163,4 +165,24 @@ Command Zone::GetCommandForSetpoint(Command last, double pv, double sv)
     }
     Log::Message("Zone: no command change for PV=" + std::to_string(pv) + ", SV=" + std::to_string(sv));
     return last;
+}
+
+void Zone::UseSchedule(Schedule *s)
+{
+    sched = s;
+}
+
+std::optional<double> Zone::GetSetValue(const std::chrono::system_clock::time_point &tp) const
+{
+    if (sched == nullptr)
+    {
+        if (has_sv)
+            return set_value;
+        else
+            return std::nullopt;
+    }
+    else
+    {
+        return sched->GetSv(tp);
+    }
 }

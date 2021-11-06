@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <chrono>
 
 namespace mzloop
 {
@@ -30,6 +31,7 @@ namespace mzloop
     }
 
     class Sensor;
+    class Schedule;
     
     class Zone
     {
@@ -44,14 +46,8 @@ namespace mzloop
                     return present_value;
                 else
                     return std::nullopt;
-            };
-        std::optional<double> GetSetValue() const
-            {
-                if (has_sv)
-                    return set_value;
-                else
-                    return std::nullopt;
-            };
+            }
+        std::optional<double> GetSetValue(const std::chrono::system_clock::time_point &tp = std::chrono::system_clock::now()) const;
 
         void SetValue(double sv);
         void SetHysteresis(double off, double accept, double norm, double urgent);
@@ -61,8 +57,9 @@ namespace mzloop
         double GetHysteresisUrgent() const { return hyst_urgent; }
         void AssignInput(Sensor *newinput);
         Command GetCommandForSetpoint(Command last, double pv, double sv);
+        void UseSchedule(Schedule *s);
 
-        virtual Command GetOutput() = 0;
+        virtual Command GetOutput(const std::chrono::system_clock::time_point &tp = std::chrono::system_clock::now()) = 0;
 
         virtual void ReadPresentValue();
 
@@ -74,20 +71,21 @@ namespace mzloop
 
         Sensor *input;
         Command last_command;
+        Schedule *sched;
     };
 
     class LeafZone : public Zone
     {
     public:
         LeafZone(const std::string name);
-        Command GetOutput() override;
+        Command GetOutput(const std::chrono::system_clock::time_point &tp = std::chrono::system_clock::now()) override;
     };
 
     class CompositeZone : public Zone
     {
     public:
         CompositeZone(const std::string name);
-        Command GetOutput() override;
+        Command GetOutput(const std::chrono::system_clock::time_point &tp = std::chrono::system_clock::now()) override;
         void ReadPresentValue() override;
 
         void AddMemberZone(Zone *zone);
