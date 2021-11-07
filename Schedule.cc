@@ -159,11 +159,13 @@ double Schedule::GetSv(const week_time &wt) const
 
     int raw_seconds_1 = before->wt.raw_seconds();
     int raw_seconds_2 = after->wt.raw_seconds();
+    int raw_seconds_now = wt.raw_seconds();
     if (raw_seconds_2 < raw_seconds_1)
     {
         raw_seconds_2 += 604800;
+        if (raw_seconds_now < raw_seconds_1)
+            raw_seconds_now += 604800;
     }
-    int raw_seconds_now = wt.raw_seconds();
     //Log::Message("t1=" + to_string(raw_seconds_1) + " t2=" + to_string(raw_seconds_2) + " t=" + to_string(raw_seconds_now));
     double sv;
 
