@@ -62,6 +62,7 @@ Command CompositeZone::GetOutput(const std::chrono::system_clock::time_point &tp
         else
         {
             Log::Message("CompositeZone: no input value");
+            last_command = Off;
             return last_command;
         }
     }
