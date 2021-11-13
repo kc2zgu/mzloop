@@ -5,6 +5,7 @@
 #include <json/json.h>
 #include <sys/epoll.h>
 #include <boost/program_options.hpp>
+#include <signal.h>
 
 #include "Loop.hh"
 #include "Zone.hh"
@@ -22,6 +23,7 @@ int epoll_fd, mqtt_fd;
 struct epoll_event ev, events[8];
 int update_time = 10;
 bool mqtt_connected = false;
+volatile sig_atomic_t exit_requested = 0;
 
 std::string version{"0.1"};
 
@@ -46,6 +48,11 @@ int do_poll(int timeout_ms)
         return ready;
     }
     return 0;
+}
+
+void sigint_handler(int sig)
+{
+    exit_requested = 1;
 }
 
 int main(int argc, char **argv)
@@ -108,11 +115,17 @@ int main(int argc, char **argv)
     mqtt_fd = mqagent->socket();
     add_poll_fd(mqtt_fd);
 
+    struct sigaction sa;
+    sa.sa_handler = sigint_handler;
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+
     Log::Message("main: Ready to run loop");
     auto time_start = steady_clock::now();
     auto next_run = time_start + (update_time * 1s);
 
-    while (1)
+    while (!exit_requested)
     {
         auto time_now = steady_clock::now();
         if (time_now > next_run)
@@ -152,7 +165,9 @@ int main(int argc, char **argv)
         }
     }
 
-    sleep(2);
+    Log::Message("main: Exiting");
+
+    sleep(1);
 
     return 0;
 }

@@ -22,6 +22,11 @@ Loop::Loop()
 Loop::~Loop()
 {
     Log::Message("Loop: destroying");
+    for (auto &output: outputs)
+    {
+        Log::Message("Forcing output " + output->GetName() + " to OFF");
+        output->SetInactive();
+    }
 }
 
 bool Loop::LoadConfig(const std::string config_file)
@@ -133,7 +138,7 @@ bool Loop::LoadConfig(const std::string config_file)
                             return false;
                         }
                         auto *outputobj = new OutputMqtt{name.asString(), zoneobj,
-                            mqtt_agent, output["output"]["topic"].asString(), "1", "0"};
+                            mqtt_agent, output["output"]["mqtt_topic"].asString(), "1", "0"};
                         AddOutput(outputobj);
                     } else if (output["output"]["type"].asString() == "gpio")
                     {
