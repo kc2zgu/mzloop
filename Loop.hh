@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <memory>
+#include <optional>
 
 #include "Schedule.hh"
 

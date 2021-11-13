@@ -3,8 +3,8 @@
 
 #include <map>
 #include <chrono>
-#include <memory>
 #include <string>
+#include <optional>
 
 namespace mzloop
 {
@@ -13,6 +13,16 @@ namespace mzloop
     {
         week_time(int day, int seconds)
             :day{day}, seconds{seconds} {}
+        week_time(const std::chrono::system_clock::time_point &tp)
+            {
+                auto tt = std::chrono::system_clock::to_time_t(tp);
+                auto lt = localtime(&tt);
+                int s = lt->tm_hour * 3600 + lt->tm_min * 60 + lt->tm_sec;
+
+                day = lt->tm_wday;
+                seconds = s;
+            }
+
         int day;
         int seconds;
 
@@ -38,7 +48,7 @@ namespace mzloop
 
     struct schedule_point
     {
-        schedule_point(week_time wt, double sv, SchedInterpolate interp)
+        schedule_point(week_time wt, double sv, SchedInterpolate interp = SchedDefault)
             :wt{wt}, sv{sv}, interp{interp} {}
         struct week_time wt;
         double sv;
@@ -59,6 +69,7 @@ namespace mzloop
         void SetRamRate(double newrate) {ramp_rate = newrate;}
 
         void SetOverride(double override_sv);
+        void SetOverrideHold(bool hold);
         void ClearOverride() {current_override.reset();}
         const schedule_point *GetOverride() const {return current_override ? &*current_override : nullptr;}
 
@@ -71,6 +82,7 @@ namespace mzloop
     protected:
         std::map<week_time, schedule_point> schedule_points;
         std::optional<schedule_point> current_override;
+        bool override_hold;
         SchedInterpolate default_interpolate;
         double ramp_rate;
     };

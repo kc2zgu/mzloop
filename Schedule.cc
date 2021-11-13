@@ -9,7 +9,7 @@ using namespace std::chrono;
 
 Schedule::Schedule()
     :default_interpolate{SchedStep},
-     ramp_rate{5}
+     ramp_rate{2}
 {
     
 }
@@ -142,6 +142,23 @@ double Schedule::GetSv(const week_time &wt) const
 
     auto before = GetPointPrev(wt);
     auto after = GetPointNext(wt);
+    SchedInterpolate interp = (after != nullptr) ? after->interp : default_interpolate;
+
+    if (current_override)
+    {
+        if (override_hold)
+        {
+            return current_override->sv;
+        }
+        else
+        {
+            if (before != nullptr && before->wt < current_override->wt)
+            {
+                before = &*current_override;
+                interp = SchedEndRamp;
+            }
+        }
+    }
 
     if (after == nullptr)
     {
@@ -169,7 +186,7 @@ double Schedule::GetSv(const week_time &wt) const
     //Log::Message("t1=" + to_string(raw_seconds_1) + " t2=" + to_string(raw_seconds_2) + " t=" + to_string(raw_seconds_now));
     double sv;
 
-    switch (after->interp)
+    switch (interp)
     {
     case SchedStep:
         return after->sv;
@@ -206,10 +223,17 @@ double Schedule::GetSv(const week_time &wt) const
 
 double Schedule::GetSv(const std::chrono::system_clock::time_point &tp) const
 {
-    auto tt = system_clock::to_time_t(tp);
-    auto lt = localtime(&tt);
-    int s = lt->tm_hour * 3600 + lt->tm_min * 60 + lt->tm_sec;
-    Log::Message("localtime: " + to_string(lt->tm_wday) + " " + to_string(s));
-
-    return GetSv(week_time{lt->tm_wday, s});
+    return GetSv(week_time{tp});
 }
+
+void Schedule::SetOverride(double override_sv)
+{
+    current_override = schedule_point{week_time{system_clock::now()}, override_sv};
+    Log::Message("Schedule: override set to " + to_string(override_sv));
+}
+
+void Schedule::SetOverrideHold(bool hold)
+{
+    override_hold = hold;
+}
+

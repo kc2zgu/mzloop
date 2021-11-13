@@ -1,8 +1,10 @@
 #include "MqttAgent.hh"
 #include "Log.hh"
+#include <cstring>
 
 using namespace mzloop;
 using namespace std;
+using namespace std::chrono;
 
 MqttAgent::MqttAgent()
 {
@@ -19,16 +21,37 @@ bool MqttAgent::Connect(std::string host, int port)
 {
     Log::Message("MQTT: connecting to " + host);
     int result = connect(host.c_str(), port, 10);
+
+    if (result == MOSQ_ERR_SUCCESS)
+    {
+        for (auto& sub: subscriptions)
+        {
+            auto& topic = sub.first;
+            Log::Message("MQTT: (re)subscribing to " + topic);
+            subscribe(nullptr, topic.c_str(), 1);
+        }
+    }
+    else if (result == MOSQ_ERR_INVAL)
+        Log::Message("MQTT: invalid connection parameters");
+    else if (result == MOSQ_ERR_ERRNO)
+        Log::Message("MQTT: system error: " + string{strerror(errno)});
+
     return (result == MOSQ_ERR_SUCCESS);
 }
 
-void MqttAgent::Poll()
+bool MqttAgent::Poll()
 {
     Log::Message("MQTT: polling");
-    loop_read();
+    int ret = loop_read();
+    if (ret == MOSQ_ERR_CONN_LOST || ret == MOSQ_ERR_NO_CONN)
+    {
+        Log::Message("MQTT: connection lost!");
+        return false;
+    }
     if (want_write())
         loop_write();
     loop_misc();
+    return true;
 }
 
 int MqttAgent::GetSocket()
@@ -39,7 +62,16 @@ int MqttAgent::GetSocket()
 void MqttAgent::SubscribeTopic(std::string topic)
 {
     subscribe(nullptr, topic.c_str(), 1);
+    subscriptions[topic].topic = topic;
     Log::Message("MQTT: subscribed to " + topic);
+}
+
+void MqttAgent::SubscribeTopic(std::string topic, topic_handler handler)
+{
+    subscribe(nullptr, topic.c_str(), 1);
+    subscriptions[topic].topic = topic;
+    subscriptions[topic].handler = handler;
+    Log::Message("MQTT: subscribed to " + topic + " with handler function");
 }
 
 void MqttAgent::PublishTopic(std::string topic, std::string payload, bool retain)
@@ -50,15 +82,17 @@ void MqttAgent::PublishTopic(std::string topic, std::string payload, bool retain
 
 std::optional<std::string> MqttAgent::GetTopicValue(std::string topic) const
 {
-    auto value = topic_values.find(topic);
-    if (value != topic_values.end())
+    auto sub_iter = subscriptions.find(topic);
+    if (sub_iter != subscriptions.end())
     {
-        return value->second;
+        auto& sub = sub_iter->second;
+        auto age = steady_clock::now() - sub.received;
+        if (age < 180s)
+            return sub.value;
+        else
+            Log::Message("MQTT: not returning stale data for " + topic);
     }
-    else
-    {
-        return nullopt;
-    }
+    return nullopt;
 }
 
 void MqttAgent::on_message(const struct mosquitto_message *message)
@@ -68,6 +102,19 @@ void MqttAgent::on_message(const struct mosquitto_message *message)
         std::string topic{message->topic};
         std::string payload{(const char*)message->payload, (size_t)message->payloadlen};
         Log::Message("MQTT: message: " + topic + "=" + payload);
-        topic_values[topic] = payload;
+        auto sub_iter = subscriptions.find(topic);
+
+        if (sub_iter != subscriptions.end())
+        {
+            auto& sub = sub_iter->second;
+            sub.value = payload;
+            sub.received = steady_clock::now();
+
+            if (sub.handler)
+            {
+                Log::Message("MQTT: Calling handler");
+                sub.handler(topic, payload);
+            }
+        }
     }
 }
