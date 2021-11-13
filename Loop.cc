@@ -212,11 +212,13 @@ void Loop::RunIteration()
         {
             Log::Message("Setting output " + output->GetName() + " to ON");
             output->SetOn();
+            mqtt_agent->PublishTopic("mzloop/outputs/" + output->GetName(), "on");
         }
         else
         {
             Log::Message("Setting output " + output->GetName() + " to OFF");
             output->SetOff();
+            mqtt_agent->PublishTopic("mzloop/outputs/" + output->GetName(), "off");
         }
     }
 
