@@ -1,9 +1,9 @@
-mtwrf@0615 21 e
-mtwrf@0730 19.5 e
-mtwrf@0900 20.5 r
-mtwrf@1800 21 r
-mtwrf@2100 21 s
-mtwr@2300 19 r
+mtwrf@0615 20.75 e
+mtwrf@0710 19.25 e
+mtwrf@0900 20 r
+mtwrf@1800 20.5 r
+mtwrf@2100 20.5 s
+mtwr@2300 18.5 r
 f@2350 19.5 r
 mtwrf@0100 16 r
 su@0130 16 r
