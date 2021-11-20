@@ -9,7 +9,8 @@ using namespace std::chrono;
 
 Schedule::Schedule()
     :default_interpolate{SchedStep},
-     ramp_rate{2}
+     ramp_rate{2},
+     override_hold{false}
 {
     
 }
@@ -134,7 +135,7 @@ const schedule_point *Schedule::GetPointNext(const week_time &wt) const
     return &(*sp).second;
 }
 
-double Schedule::GetSv(const week_time &wt) const
+double Schedule::GetSv(const week_time &wt)
 {
     auto exact = GetPointExact(wt);
     if (exact != nullptr)
@@ -156,6 +157,11 @@ double Schedule::GetSv(const week_time &wt) const
             {
                 before = &*current_override;
                 interp = SchedEndRamp;
+            }
+            if (before != nullptr && current_override->wt < before->wt)
+            {
+                Log::Message("Schedule: override expired");
+                ClearOverride();
             }
         }
     }
@@ -221,7 +227,7 @@ double Schedule::GetSv(const week_time &wt) const
     return before->sv;
 }
 
-double Schedule::GetSv(const std::chrono::system_clock::time_point &tp) const
+double Schedule::GetSv(const std::chrono::system_clock::time_point &tp)
 {
     return GetSv(week_time{tp});
 }

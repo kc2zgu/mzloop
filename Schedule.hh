@@ -70,14 +70,15 @@ namespace mzloop
 
         void SetOverride(double override_sv);
         void SetOverrideHold(bool hold);
-        void ClearOverride() {current_override.reset();}
+        void ClearOverride() {current_override.reset(); override_hold = false;}
         const schedule_point *GetOverride() const {return current_override ? &*current_override : nullptr;}
+        const bool IsOverrideHold() const {return override_hold;}
 
         const schedule_point *GetPointExact(const week_time &wt) const;
         const schedule_point *GetPointPrev(const week_time &wt) const;
         const schedule_point *GetPointNext(const week_time &wt) const;
-        double GetSv(const week_time &wt) const;
-        double GetSv(const std::chrono::system_clock::time_point &tp) const;
+        double GetSv(const week_time &wt);
+        double GetSv(const std::chrono::system_clock::time_point &tp);
 
     protected:
         std::map<week_time, schedule_point> schedule_points;

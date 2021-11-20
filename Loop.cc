@@ -200,9 +200,21 @@ bool Loop::LoadConfig(const std::string config_file)
         auto sched_set_mode = [this](string topic, string payload)
             {
                 Log::Message("Received schedule mode command " + payload);
+                if (payload == "scheduled")
+                {
+                    sched.ClearOverride();
+                } else if (payload == "temporary")
+                {
+                    if (sched.GetOverride() != nullptr)
+                        sched.SetOverrideHold(false);
+                } else if (payload == "hold")
+                {
+                    if (sched.GetOverride() != nullptr)
+                        sched.SetOverrideHold(true);
+                }
             };
         mqtt_agent->SubscribeTopic("mzloop/schedule/override", sched_set_override);
-        mqtt_agent->SubscribeTopic("mzloop/schedule/mode", sched_set_mode);
+        mqtt_agent->SubscribeTopic("mzloop/schedule/set_mode", sched_set_mode);
         return true;
     }
     return false;
@@ -243,6 +255,15 @@ void Loop::RunIteration()
         auto sv = zone->GetSetValue(time_now);
         mqtt_agent->PublishTopic(base + "/sv", sv ? to_string(*sv) : "none");
     }
+
+    if (sched.GetOverride() != nullptr)
+    {
+        if (sched.IsOverrideHold())
+            mqtt_agent->PublishTopic("mzloop/schedule/mode", "hold");
+        else
+            mqtt_agent->PublishTopic("mzloop/schedule/mode", "temporary");
+    } else
+        mqtt_agent->PublishTopic("mzloop/schedule/mode", "scheduled");
 }
 
 Zone *Loop::GetZone(const string name) const
