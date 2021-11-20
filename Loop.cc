@@ -191,6 +191,18 @@ bool Loop::LoadConfig(const std::string config_file)
             string base = "mzloop/zones/" + name;
             mqtt_agent->SubscribeTopic(base + "/sv");
         }
+
+        auto sched_set_override = [this](string topic, string payload)
+            {
+                Log::Message("Received schedule override " + payload);
+                sched.SetOverride(stod(payload));
+            };
+        auto sched_set_mode = [this](string topic, string payload)
+            {
+                Log::Message("Received schedule mode command " + payload);
+            };
+        mqtt_agent->SubscribeTopic("mzloop/schedule/override", sched_set_override);
+        mqtt_agent->SubscribeTopic("mzloop/schedule/mode", sched_set_mode);
         return true;
     }
     return false;
