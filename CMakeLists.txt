@@ -18,8 +18,13 @@ include_directories(${Boost_INCLUDE_DIRS})
 add_library("mzloop-core" STATIC ${CORE_SRC})
 target_link_libraries("mzloop-core" PkgConfig::JSON PkgConfig::MOSQ ${Boost_LIBRARIES} PkgConfig::GPIOD)
 
+set(BUILD_UVW_SHARED_LIB ON)
+set(FIND_LIBUV ON)
+set(BUILD_TESTING OFF)
+add_subdirectory("uvw")
+
 add_executable("mzloop" "mzloop.cc")
-target_link_libraries("mzloop" "mzloop-core")
+target_link_libraries("mzloop" "mzloop-core" "uvw")
 
 add_executable("mzsched" "mzsched.cc")
 target_link_libraries("mzsched" "mzloop-core")

@@ -47,6 +47,11 @@ void Schedule::LoadSchedule(std::string file)
     Clear();
     Log::Message("Schedule: reading " + file);
     ifstream stream {file};
+    if (!stream.good())
+    {
+        Log::Message("Schedule: error");
+        return;
+    }
     regex pattern{"([umtwrfs]*)@(\\d{4}) (\\d+(?:\\.\\d*)?)(?: ([srec]))?"};
     while (!stream.eof())
     {
@@ -109,6 +114,10 @@ const schedule_point *Schedule::GetPointExact(const week_time &wt) const
 const schedule_point *Schedule::GetPointPrev(const week_time &wt) const
 {
     auto sp = schedule_points.lower_bound(wt);
+    if (sp == schedule_points.end())
+    {
+        return nullptr;
+    }
     sp--;
     if (sp == schedule_points.end())
     {

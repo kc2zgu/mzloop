@@ -6,6 +6,7 @@
 #include <sys/epoll.h>
 #include <boost/program_options.hpp>
 #include <signal.h>
+#include <uvw.hpp>
 
 #include "Loop.hh"
 #include "Zone.hh"
@@ -19,40 +20,24 @@ using namespace std;
 using namespace std::chrono;
 namespace po = boost::program_options;
 
-int epoll_fd, mqtt_fd;
-struct epoll_event ev, events[8];
 int update_time = 10;
 bool mqtt_connected = false;
-volatile sig_atomic_t exit_requested = 0;
 
 std::string version{"0.1"};
 
-void add_poll_fd(int fd)
+shared_ptr<uvw::PollHandle> mqtt_start_poll(shared_ptr<uvw::Loop> uvloop, MqttAgent *agent)
 {
-    ev.events = EPOLLIN;
-    ev.data.fd = fd;
-    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev);
-    Log::Message("main: epoll add " + to_string(fd));
-}
+    int s = agent->GetSocket();
+    auto loop_mqtt_poll = uvloop->resource<uvw::PollHandle>(s);
+    loop_mqtt_poll->on<uvw::PollEvent>([agent](uvw::PollEvent&, uvw::PollHandle&)
+        {
+            agent->Poll();
+            Log::Message("mqtt poll done");
+        });
+    loop_mqtt_poll->start(uvw::PollHandle::Event::READABLE);
+    Log::Message("Started polling mqtt socket " + to_string(s));
 
-void remove_poll_fd(int fd)
-{
-    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-    Log::Message("main: epoll del " + to_string(fd));
-}
-
-int do_poll(int timeout_ms)
-{
-    if (int ready = epoll_wait(epoll_fd, events, 8, timeout_ms) > 0)
-    {
-        return ready;
-    }
-    return 0;
-}
-
-void sigint_handler(int sig)
-{
-    exit_requested = 1;
+    return loop_mqtt_poll;
 }
 
 int main(int argc, char **argv)
@@ -111,63 +96,55 @@ int main(int argc, char **argv)
         }
     }
 
-    epoll_fd = epoll_create(1);
-    mqtt_fd = mqagent->socket();
-    add_poll_fd(mqtt_fd);
+    auto uvloop = uvw::Loop::getDefault();
 
-    struct sigaction sa;
-    sa.sa_handler = sigint_handler;
-    sa.sa_flags = 0;
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
-
-    Log::Message("main: Ready to run loop");
-    auto time_start = steady_clock::now();
-    auto next_run = time_start + (update_time * 1s);
-
-    while (!exit_requested)
-    {
-        auto time_now = steady_clock::now();
-        if (time_now > next_run)
+    shared_ptr<uvw::PollHandle> loop_mqtt_poll;
+    auto loop_timer = uvloop->resource<uvw::TimerHandle>();
+    loop_timer->start(1s, update_time * 1s);
+    loop_timer->on<uvw::TimerEvent>([&loop, &loop_mqtt_poll, mqagent, &vm, &uvloop](uvw::TimerEvent&, uvw::TimerHandle&)
         {
-            Log::Message("main: running");
-            if (!mqagent->Poll())
-            {
-                mqtt_connected = false;
-            }
+            Log::Message("uv timer");
             loop.RunIteration();
-            next_run += (update_time * 1s);
 
             if (!mqtt_connected && vm.count("mqtt-broker"))
             {
                 Log::Message("main: Trying to reconnect MQTT");
-                remove_poll_fd(mqtt_fd);
+                loop_mqtt_poll.reset();
                 if (mqagent->Connect(vm["mqtt-broker"].as<string>()))
                 {
                     Log::Message("main: MQTT connected");
                     Log::Message("main: MQTT socket: " + std::to_string(mqagent->socket()));
                     mqtt_connected = true;
-                    mqtt_fd = mqagent->socket();
-                    add_poll_fd(mqtt_fd);
+                    loop_mqtt_poll = mqtt_start_poll(uvloop, mqagent);
                 }
             }
-        } else
+        });
+
+    auto loop_sigint = uvloop->resource<uvw::SignalHandle>();
+    loop_sigint->start(SIGINT);
+    loop_sigint->on<uvw::SignalEvent>([&loop_timer, &loop_sigint, &loop_mqtt_poll](uvw::SignalEvent&, uvw::SignalHandle&)
         {
-            auto time_left = duration_cast<milliseconds>(next_run - time_now).count();
-            Log::Message("main: waiting " + to_string(time_left) + "ms");
-            if (do_poll(time_left))
+            Log::Message("interrupted!");
+            loop_timer->close();
+            loop_sigint->close();
+            if (loop_mqtt_poll)
             {
-                if (!mqagent->Poll())
-                {
-                    mqtt_connected = false;
-                }
+                loop_mqtt_poll->close();
             }
-        }
+        });
+
+    if (mqtt_connected)
+    {
+        loop_mqtt_poll = mqtt_start_poll(uvloop, mqagent);
     }
 
-    Log::Message("main: Exiting");
+    Log::Message("main: Ready to run loop");
+    auto time_start = steady_clock::now();
+    auto next_run = time_start + (update_time * 1s);
 
-    sleep(1);
+    uvloop->run();
+
+    Log::Message("main: Exiting");
 
     return 0;
 }
