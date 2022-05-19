@@ -29,12 +29,20 @@ shared_ptr<uvw::PollHandle> mqtt_start_poll(shared_ptr<uvw::Loop> uvloop, MqttAg
 {
     int s = agent->GetSocket();
     auto loop_mqtt_poll = uvloop->resource<uvw::PollHandle>(s);
-    loop_mqtt_poll->on<uvw::PollEvent>([agent](uvw::PollEvent&, uvw::PollHandle&)
+    loop_mqtt_poll->on<uvw::PollEvent>([agent](uvw::PollEvent &event, uvw::PollHandle&)
         {
-            agent->Poll();
-            Log::Message("mqtt poll done");
+            if (event.flags & uvw::PollHandle::Event::READABLE)
+            {
+                agent->Poll();
+                Log::Message("mqtt poll done");
+            }
+            if (event.flags & uvw::PollHandle::Event::DISCONNECT)
+            {
+                Log::Message("mqtt: disconnect event");
+                mqtt_connected= false;
+            }
         });
-    loop_mqtt_poll->start(uvw::PollHandle::Event::READABLE);
+    loop_mqtt_poll->start(uvw::Flags(uvw::PollHandle::Event::READABLE) | uvw::Flags(uvw::PollHandle::Event::DISCONNECT));
     Log::Message("Started polling mqtt socket " + to_string(s));
 
     return loop_mqtt_poll;
@@ -109,6 +117,7 @@ int main(int argc, char **argv)
             if (!mqtt_connected && vm.count("mqtt-broker"))
             {
                 Log::Message("main: Trying to reconnect MQTT");
+                loop_mqtt_poll->close();
                 loop_mqtt_poll.reset();
                 if (mqagent->Connect(vm["mqtt-broker"].as<string>()))
                 {
