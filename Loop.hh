@@ -61,6 +61,7 @@ namespace mzloop
         std::map<std::string, std::string> misc_config;
 
         MqttAgent *mqtt_agent;
+        std::string mqtt_prefix;
         Schedule sched;
 
         bool LoadConfigZones(const Json::Value &zones);

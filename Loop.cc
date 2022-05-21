@@ -14,7 +14,8 @@ using namespace std;
 using namespace std::chrono;
 
 Loop::Loop()
-    :mqtt_agent{nullptr}
+    :mqtt_agent{nullptr},
+     mqtt_prefix{"mzloop"}
 {
 
 }
@@ -98,7 +99,7 @@ bool Loop::LoadConfig(const std::string config_file)
         for (auto& zone: zones)
         {
             string name = zone->GetName();
-            string base = "mzloop/zones/" + name;
+            string base = mqtt_prefix + "/zones/" + name;
             mqtt_agent->SubscribeTopic(base + "/sv");
         }
 
@@ -123,8 +124,8 @@ bool Loop::LoadConfig(const std::string config_file)
                         sched.SetOverrideHold(true);
                 }
             };
-        mqtt_agent->SubscribeTopic("mzloop/schedule/override", sched_set_override);
-        mqtt_agent->SubscribeTopic("mzloop/schedule/set_mode", sched_set_mode);
+        mqtt_agent->SubscribeTopic(mqtt_prefix + "/schedule/override", sched_set_override);
+        mqtt_agent->SubscribeTopic(mqtt_prefix + "/schedule/set_mode", sched_set_mode);
         return true;
     }
     return false;
@@ -251,6 +252,12 @@ bool Loop::LoadConfigMisc(const Json::Value &misc)
         sched.LoadSchedule(*schedule_file);
     }
 
+    if (auto mqtt_prefix = GetConfigMisc("mqtt_prefix"))
+    {
+        this->mqtt_prefix = *mqtt_prefix;
+        Log::Message("Loop: using " + this->mqtt_prefix + " as MQTT topic prefix");
+    }
+
     return true;
 }
 
@@ -270,20 +277,20 @@ void Loop::RunIteration()
         {
             Log::Message("Setting output " + output->GetName() + " to ON");
             output->SetOn();
-            mqtt_agent->PublishTopic("mzloop/outputs/" + output->GetName(), "on");
+            mqtt_agent->PublishTopic(mqtt_prefix + "/outputs/" + output->GetName(), "on");
         }
         else
         {
             Log::Message("Setting output " + output->GetName() + " to OFF");
             output->SetOff();
-            mqtt_agent->PublishTopic("mzloop/outputs/" + output->GetName(), "off");
+            mqtt_agent->PublishTopic(mqtt_prefix + "/outputs/" + output->GetName(), "off");
         }
     }
 
     for (auto &zone: zones)
     {
         string name = zone->GetName();
-        string base = "mzloop/zones/" + name;
+        string base = mqtt_prefix + "/zones/" + name;
         auto pv = zone->GetPresentValue();
         mqtt_agent->PublishTopic(base + "/pv", pv ? to_string(*pv) : "none");
         auto sv = zone->GetSetValue(time_now);
@@ -293,11 +300,11 @@ void Loop::RunIteration()
     if (sched.GetOverride() != nullptr)
     {
         if (sched.IsOverrideHold())
-            mqtt_agent->PublishTopic("mzloop/schedule/mode", "hold");
+            mqtt_agent->PublishTopic(mqtt_prefix + "/schedule/mode", "hold");
         else
-            mqtt_agent->PublishTopic("mzloop/schedule/mode", "temporary");
+            mqtt_agent->PublishTopic(mqtt_prefix + "/schedule/mode", "temporary");
     } else
-        mqtt_agent->PublishTopic("mzloop/schedule/mode", "scheduled");
+        mqtt_agent->PublishTopic(mqtt_prefix + "/schedule/mode", "scheduled");
 }
 
 Zone *Loop::GetZone(const string name) const
