@@ -22,7 +22,7 @@ Loop::Loop()
 
 Loop::~Loop()
 {
-    Log::Message("Loop: destroying");
+    Log::Trace("Loop: destroying");
     for (auto &output: outputs)
     {
         Log::Message("Forcing output " + output->GetName() + " to OFF");
@@ -32,7 +32,7 @@ Loop::~Loop()
 
 bool Loop::LoadConfig(const std::string config_file)
 {
-    Log::Message("Opening " + config_file);
+    Log::Message("Loop: Opening " + config_file);
     ifstream config_stream{config_file};
 
     if (config_stream.good())
@@ -43,7 +43,7 @@ bool Loop::LoadConfig(const std::string config_file)
         auto& conf_main = conf_root["main"];
         if (conf_main.type() == Json::objectValue)
         {
-            Log::Message("Processing main options");
+            Log::Trace("Processing main options");
             LoadConfigMisc(conf_main);
         }
 
@@ -57,7 +57,7 @@ bool Loop::LoadConfig(const std::string config_file)
         }
         else
         {
-            Log::Message("Config error: zones is not an array");
+            Log::Error("Config error: zones is not an array");
             return false;
         }
         auto& outputs = conf_root["outputs"];
@@ -70,7 +70,7 @@ bool Loop::LoadConfig(const std::string config_file)
         }
         else
         {
-            Log::Message("Config error: outputs is not an array");
+            Log::Error("Config error: outputs is not an array");
             return false;
         }
         for (auto& zone: conf_zones) // populate composite zone members
@@ -83,7 +83,7 @@ bool Loop::LoadConfig(const std::string config_file)
                 {
                     for (auto& member: zone["members"])
                     {
-                        Log::Message("Composite zone " + zoneobj->GetName() + ": member " + member.asString());
+                        Log::Trace("Composite zone " + zoneobj->GetName() + ": member " + member.asString());
                         Zone *member_zone = GetZone(member.asString());
                         if (member_zone != nullptr)
                             zoneobj->AddMemberZone(member_zone);
@@ -92,7 +92,7 @@ bool Loop::LoadConfig(const std::string config_file)
             }
             else
             {
-                Log::Message("Not a composite zone: " + name.asString());
+                Log::Error("Not a composite zone: " + name.asString());
             }
         }
         // subscribe to mqtt command topics
@@ -142,32 +142,32 @@ bool Loop::LoadConfigZones(const Json::Value &zones)
             Zone *newzone;
             if (!zone.isMember("members"))
             {
-                Log::Message("Leaf zone");
+                Log::Trace("Leaf zone");
                 newzone = CreateLeafZone(name.asString());
                 if (zone.isMember("input"))
                 {
-                    Log::Message("Processing input sensor config");
+                    Log::Trace("Processing input sensor config");
                     auto& input = zone["input"];
                     if (input["type"].asString() == "mqtt")
                     {
-                        Log::Message("MQTT input");
+                        Log::Trace("MQTT input");
                         auto *sensor = new SensorMqtt{mqtt_agent, input["mqtt_topic"].asString()};
                         newzone->AssignInput(sensor);
                     }
                     else
                     {
-                        Log::Message("Invalid input type");
+                        Log::Trace("Invalid input type");
                         return false;
                     }
                 }
                 else
                 {
-                    Log::Message("Leaf zone with no input");
+                    Log::Warning("Leaf zone with no input");
                 }
             }
             else
             {
-                Log::Message("Composite zone");
+                Log::Trace("Composite zone");
                 newzone = CreateCompositeZone(name.asString());
             }
             if (zone.isMember("setpoint"))
@@ -189,7 +189,7 @@ bool Loop::LoadConfigZones(const Json::Value &zones)
         }
         else
         {
-            Log::Message("Config error: zones member is not an object");
+            Log::Error("Config error: zones member is not an object");
             return false;
         }
     }
@@ -207,11 +207,11 @@ bool Loop::LoadConfigOutputs(const Json::Value &outputs)
             Log::Message("Found output " + name.asString() + " for zone " + zone.asString());
             if (output["output"]["type"].asString() == "mqtt")
             {
-                Log::Message("MQTT output");
+                Log::Trace("MQTT output");
                 Zone *zoneobj = GetZone(zone.asString());
                 if (zoneobj == nullptr)
                 {
-                    Log::Message("Zone not defined");
+                    Log::Error("Zone not defined");
                     return false;
                 }
                 auto *outputobj = new OutputMqtt{name.asString(), zoneobj,
@@ -219,11 +219,11 @@ bool Loop::LoadConfigOutputs(const Json::Value &outputs)
                 AddOutput(outputobj);
             } else if (output["output"]["type"].asString() == "gpio")
             {
-                Log::Message("GPIO output");
+                Log::Trace("GPIO output");
                 Zone *zoneobj = GetZone(zone.asString());
                 if (zoneobj == nullptr)
                 {
-                    Log::Message("Zone not defined");
+                    Log::Error("Zone not defined");
                     return false;
                 }
                 auto *outputobj = new OutputGpio{name.asString(), zoneobj,

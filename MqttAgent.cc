@@ -27,25 +27,25 @@ bool MqttAgent::Connect(std::string host, int port)
         for (auto& sub: subscriptions)
         {
             auto& topic = sub.first;
-            Log::Message("MQTT: (re)subscribing to " + topic);
+            Log::Trace("MQTT: (re)subscribing to " + topic);
             subscribe(nullptr, topic.c_str(), 1);
         }
     }
     else if (result == MOSQ_ERR_INVAL)
-        Log::Message("MQTT: invalid connection parameters");
+        Log::Error("MQTT: invalid connection parameters");
     else if (result == MOSQ_ERR_ERRNO)
-        Log::Message("MQTT: system error: " + string{strerror(errno)});
+        Log::Error("MQTT: system error: " + string{strerror(errno)});
 
     return (result == MOSQ_ERR_SUCCESS);
 }
 
 bool MqttAgent::Poll()
 {
-    Log::Message("MQTT: polling");
+    Log::Trace("MQTT: polling");
     int ret = loop_read();
     if (ret == MOSQ_ERR_CONN_LOST || ret == MOSQ_ERR_NO_CONN)
     {
-        Log::Message("MQTT: connection lost!");
+        Log::Error("MQTT: connection lost!");
         return false;
     }
     if (want_write())
@@ -77,7 +77,7 @@ void MqttAgent::SubscribeTopic(std::string topic, topic_handler handler)
 void MqttAgent::PublishTopic(std::string topic, std::string payload, bool retain)
 {
     publish(nullptr, topic.c_str(), payload.size(), payload.c_str(), 1, retain);
-    Log::Message("MQTT: published " + topic + "=" + payload + (retain ? "[r]" : ""));
+    Log::Trace("MQTT: published " + topic + "=" + payload + (retain ? "[r]" : ""));
 }
 
 std::optional<std::string> MqttAgent::GetTopicValue(std::string topic) const
@@ -90,7 +90,7 @@ std::optional<std::string> MqttAgent::GetTopicValue(std::string topic) const
         if (age < 180s)
             return sub.value;
         else
-            Log::Message("MQTT: not returning stale data for " + topic);
+            Log::Warning("MQTT: not returning stale data for " + topic);
     }
     return nullopt;
 }
@@ -101,7 +101,7 @@ void MqttAgent::on_message(const struct mosquitto_message *message)
     {
         std::string topic{message->topic};
         std::string payload{(const char*)message->payload, (size_t)message->payloadlen};
-        Log::Message("MQTT: message: " + topic + "=" + payload);
+        Log::Trace("MQTT: message: " + topic + "=" + payload);
         auto sub_iter = subscriptions.find(topic);
 
         if (sub_iter != subscriptions.end())
@@ -112,7 +112,7 @@ void MqttAgent::on_message(const struct mosquitto_message *message)
 
             if (sub.handler)
             {
-                Log::Message("MQTT: Calling handler");
+                Log::Trace("MQTT: Calling handler");
                 sub.handler(topic, payload);
             }
         }
