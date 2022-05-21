@@ -43,74 +43,15 @@ bool Loop::LoadConfig(const std::string config_file)
         if (conf_main.type() == Json::objectValue)
         {
             Log::Message("Processing main options");
-            if (conf_main["schedule_file"].type() == Json::stringValue)
-            {
-                sched.LoadSchedule(conf_main["schedule_file"].asString());
-            }
+            LoadConfigMisc(conf_main);
         }
 
         auto& conf_zones = conf_root["zones"];
         if (conf_zones.type() == Json::arrayValue) // read all zones
         {
-            for (auto& zone: conf_zones)
+            if (!LoadConfigZones(conf_zones))
             {
-                if (zone.type() == Json::objectValue)
-                {
-                    auto& name = zone["name"];
-                    Log::Message("Found zone " + name.asString());
-                    Zone *newzone;
-                    if (!zone.isMember("members"))
-                    {
-                        Log::Message("Leaf zone");
-                        newzone = CreateLeafZone(name.asString());
-                        if (zone.isMember("input"))
-                        {
-                            Log::Message("Processing input sensor config");
-                            auto& input = zone["input"];
-                            if (input["type"].asString() == "mqtt")
-                            {
-                                Log::Message("MQTT input");
-                                auto *sensor = new SensorMqtt{mqtt_agent, input["mqtt_topic"].asString()};
-                                newzone->AssignInput(sensor);
-                            }
-                            else
-                            {
-                                Log::Message("Invalid input type");
-                                return false;
-                            }
-                        }
-                        else
-                        {
-                            Log::Message("Leaf zone with no input");
-                        }
-                    }
-                    else
-                    {
-                        Log::Message("Composite zone");
-                        newzone = CreateCompositeZone(name.asString());
-                    }
-                    if (zone.isMember("setpoint"))
-                    {
-                        newzone->SetValue(zone["setpoint"].asDouble());
-                        if (zone.isMember("hysteresis") && zone["hysteresis"].type() == Json::arrayValue)
-                        {
-                            auto& hysteresis = zone["hysteresis"];
-                            newzone->SetHysteresis(hysteresis[0].asDouble(),
-                                                   hysteresis[1].asDouble(),
-                                                   hysteresis[2].asDouble(),
-                                                   hysteresis[3].asDouble());
-                        }
-                    }
-                    if (zone.isMember("use_schedule"))
-                    {
-                        newzone->UseSchedule(&sched);
-                    }
-                }
-                else
-                {
-                    Log::Message("Config error: zones member is not an object");
-                    return false;
-                }
+                return false;
             }
         }
         else
@@ -121,40 +62,9 @@ bool Loop::LoadConfig(const std::string config_file)
         auto& outputs = conf_root["outputs"];
         if (outputs.type() == Json::arrayValue) // read all outputs
         {
-            for (auto& output: outputs)
+            if (!LoadConfigOutputs(outputs))
             {
-                if (output.type() == Json::objectValue)
-                {
-                    auto& name = output["name"];
-                    auto& zone = output["zone"];
-                    Log::Message("Found output " + name.asString() + " for zone " + zone.asString());
-                    if (output["output"]["type"].asString() == "mqtt")
-                    {
-                        Log::Message("MQTT output");
-                        Zone *zoneobj = GetZone(zone.asString());
-                        if (zoneobj == nullptr)
-                        {
-                            Log::Message("Zone not defined");
-                            return false;
-                        }
-                        auto *outputobj = new OutputMqtt{name.asString(), zoneobj,
-                            mqtt_agent, output["output"]["mqtt_topic"].asString(), "1", "0"};
-                        AddOutput(outputobj);
-                    } else if (output["output"]["type"].asString() == "gpio")
-                    {
-                        Log::Message("GPIO output");
-                        Zone *zoneobj = GetZone(zone.asString());
-                        if (zoneobj == nullptr)
-                        {
-                            Log::Message("Zone not defined");
-                            return false;
-                        }
-                        auto *outputobj = new OutputGpio{name.asString(), zoneobj,
-                                                         output["output"]["gpio_chip"].asString(),
-                                                         output["output"]["gpio_line"].asInt()};
-                        AddOutput(outputobj);
-                    }
-                }
+                return false;
             }
         }
         else
@@ -218,6 +128,130 @@ bool Loop::LoadConfig(const std::string config_file)
         return true;
     }
     return false;
+}
+
+bool Loop::LoadConfigZones(const Json::Value &zones)
+{
+    for (auto& zone: zones)
+    {
+        if (zone.type() == Json::objectValue)
+        {
+            auto& name = zone["name"];
+            Log::Message("Found zone " + name.asString());
+            Zone *newzone;
+            if (!zone.isMember("members"))
+            {
+                Log::Message("Leaf zone");
+                newzone = CreateLeafZone(name.asString());
+                if (zone.isMember("input"))
+                {
+                    Log::Message("Processing input sensor config");
+                    auto& input = zone["input"];
+                    if (input["type"].asString() == "mqtt")
+                    {
+                        Log::Message("MQTT input");
+                        auto *sensor = new SensorMqtt{mqtt_agent, input["mqtt_topic"].asString()};
+                        newzone->AssignInput(sensor);
+                    }
+                    else
+                    {
+                        Log::Message("Invalid input type");
+                        return false;
+                    }
+                }
+                else
+                {
+                    Log::Message("Leaf zone with no input");
+                }
+            }
+            else
+            {
+                Log::Message("Composite zone");
+                newzone = CreateCompositeZone(name.asString());
+            }
+            if (zone.isMember("setpoint"))
+            {
+                newzone->SetValue(zone["setpoint"].asDouble());
+                if (zone.isMember("hysteresis") && zone["hysteresis"].type() == Json::arrayValue)
+                {
+                    auto& hysteresis = zone["hysteresis"];
+                    newzone->SetHysteresis(hysteresis[0].asDouble(),
+                                           hysteresis[1].asDouble(),
+                                           hysteresis[2].asDouble(),
+                                           hysteresis[3].asDouble());
+                }
+            }
+            if (zone.isMember("use_schedule"))
+            {
+                newzone->UseSchedule(&sched);
+            }
+        }
+        else
+        {
+            Log::Message("Config error: zones member is not an object");
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Loop::LoadConfigOutputs(const Json::Value &outputs)
+{
+    for (auto& output: outputs)
+    {
+        if (output.type() == Json::objectValue)
+        {
+            auto& name = output["name"];
+            auto& zone = output["zone"];
+            Log::Message("Found output " + name.asString() + " for zone " + zone.asString());
+            if (output["output"]["type"].asString() == "mqtt")
+            {
+                Log::Message("MQTT output");
+                Zone *zoneobj = GetZone(zone.asString());
+                if (zoneobj == nullptr)
+                {
+                    Log::Message("Zone not defined");
+                    return false;
+                }
+                auto *outputobj = new OutputMqtt{name.asString(), zoneobj,
+                    mqtt_agent, output["output"]["mqtt_topic"].asString(), "1", "0"};
+                AddOutput(outputobj);
+            } else if (output["output"]["type"].asString() == "gpio")
+            {
+                Log::Message("GPIO output");
+                Zone *zoneobj = GetZone(zone.asString());
+                if (zoneobj == nullptr)
+                {
+                    Log::Message("Zone not defined");
+                    return false;
+                }
+                auto *outputobj = new OutputGpio{name.asString(), zoneobj,
+                    output["output"]["gpio_chip"].asString(),
+                    output["output"]["gpio_line"].asInt()};
+                AddOutput(outputobj);
+            }
+        }
+    }
+    return true;
+}
+
+bool Loop::LoadConfigMisc(const Json::Value &misc)
+{
+    for (auto &value: misc.getMemberNames())
+    {
+        if (misc[value].isConvertibleTo(Json::stringValue))
+        {
+            misc_config[value] = misc[value].asString();
+            Log::Message("Loop: config: " + value + "=" + misc_config[value]);
+        }
+    }
+
+    if (auto schedule_file = GetConfigMisc("schedule_file"))
+    {
+        sched.LoadSchedule(*schedule_file);
+    }
+
+    return true;
 }
 
 void Loop::RunIteration()

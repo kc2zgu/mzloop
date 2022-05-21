@@ -20,7 +20,8 @@ using namespace std;
 using namespace std::chrono;
 namespace po = boost::program_options;
 
-int update_time = 10;
+int update_time = 2;
+string mqtt_broker;
 bool mqtt_connected = false;
 
 std::string version{"0.1"};
@@ -39,7 +40,7 @@ shared_ptr<uvw::PollHandle> mqtt_start_poll(shared_ptr<uvw::Loop> uvloop, MqttAg
             if (event.flags & uvw::PollHandle::Event::DISCONNECT)
             {
                 Log::Message("mqtt: disconnect event");
-                mqtt_connected= false;
+                mqtt_connected = false;
             }
         });
     loop_mqtt_poll->start(uvw::Flags(uvw::PollHandle::Event::READABLE) | uvw::Flags(uvw::PollHandle::Event::DISCONNECT));
@@ -82,7 +83,34 @@ int main(int argc, char **argv)
 
     if (vm.count("mqtt-broker"))
     {
-        if (mqagent->Connect(vm["mqtt-broker"].as<string>()))
+        mqtt_broker = vm["mqtt-broker"].as<string>();
+    }
+
+    if (vm.count("config"))
+    {
+        if (!loop.LoadConfig(vm["config"].as<string>()))
+        {
+            Log::Message("main: Load config failed");
+            return 1;
+        }
+    }
+
+    if (mqtt_broker.empty())
+    {
+        if (auto mqtt_conf = loop.GetConfigMisc("mqtt_broker"))
+        {
+            mqtt_broker = *mqtt_conf;
+        }
+    }
+
+    if (auto update_time_conf = loop.GetConfigMiscNum("update_time"))
+    {
+        update_time = *update_time_conf;
+    }
+
+    if (!mqtt_broker.empty())
+    {
+        if (mqagent->Connect(mqtt_broker))
         {
             Log::Message("main: MQTT connected");
             Log::Message("main: MQTT socket: " + std::to_string(mqagent->socket()));
@@ -91,15 +119,6 @@ int main(int argc, char **argv)
         else
         {
             Log::Message("main: MQTT connection failed");
-            return 1;
-        }
-    }
-
-    if (vm.count("config"))
-    {
-        if (!loop.LoadConfig(vm["config"].as<string>()))
-        {
-            Log::Message("main: Load config failed");
             return 1;
         }
     }
@@ -114,12 +133,12 @@ int main(int argc, char **argv)
             Log::Message("uv timer");
             loop.RunIteration();
 
-            if (!mqtt_connected && vm.count("mqtt-broker"))
+            if (!mqtt_connected && !mqtt_broker.empty())
             {
                 Log::Message("main: Trying to reconnect MQTT");
                 loop_mqtt_poll->close();
                 loop_mqtt_poll.reset();
-                if (mqagent->Connect(vm["mqtt-broker"].as<string>()))
+                if (mqagent->Connect(mqtt_broker))
                 {
                     Log::Message("main: MQTT connected");
                     Log::Message("main: MQTT socket: " + std::to_string(mqagent->socket()));
