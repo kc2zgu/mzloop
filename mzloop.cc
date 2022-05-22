@@ -7,6 +7,8 @@
 #include <boost/program_options.hpp>
 #include <signal.h>
 #include <uvw.hpp>
+#include <sys/random.h>
+#include <stdlib.h>
 
 #include "Loop.hh"
 #include "Zone.hh"
@@ -53,6 +55,11 @@ int main(int argc, char **argv)
 {
     Loop loop;
 
+    // mosquitto 1.5 uses rand() for client ID, seed it first
+    char random_seed[sizeof(int)];
+    getrandom(random_seed, sizeof(int), 0);
+    int seed = *((int*)random_seed);
+    srand(seed);
     MqttAgent *mqagent = loop.GetMqttAgent();
 
     po::options_description desc("Options");
