@@ -100,7 +100,13 @@ bool Loop::LoadConfig(const std::string config_file)
         {
             string name = zone->GetName();
             string base = mqtt_prefix + "/zones/" + name;
-            mqtt_agent->SubscribeTopic(base + "/sv");
+	    auto zone_update_sv = [zone = zone.get()](string topic, string payload)
+				  {
+				    auto newsv = stod(payload);
+				    Log::Message("Zone: " + zone->GetName() + " update SV " + to_string(newsv));
+				    zone->SetValue(newsv);
+				  };
+            mqtt_agent->SubscribeTopic(base + "/update_sv", zone_update_sv);
         }
 
         auto sched_set_override = [this](string topic, string payload)
