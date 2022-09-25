@@ -25,6 +25,7 @@ namespace po = boost::program_options;
 int update_time = 2;
 string mqtt_broker;
 bool mqtt_connected = false;
+Loop loop;
 
 std::string version{"0.1"};
 
@@ -36,12 +37,15 @@ shared_ptr<uvw::PollHandle> mqtt_start_poll(shared_ptr<uvw::Loop> uvloop, MqttAg
         {
             if (event.flags & uvw::PollHandle::Event::READABLE)
             {
-                agent->Poll();
+                if (!agent->Poll()) {
+                    Log::Error("mqtt connection lost in poll");
+                    mqtt_connected = false;
+                }
                 Log::Message("mqtt poll done");
             }
             if (event.flags & uvw::PollHandle::Event::DISCONNECT)
             {
-                Log::Message("mqtt: disconnect event");
+                Log::Error("mqtt: disconnect event");
                 mqtt_connected = false;
             }
         });
@@ -53,8 +57,6 @@ shared_ptr<uvw::PollHandle> mqtt_start_poll(shared_ptr<uvw::Loop> uvloop, MqttAg
 
 int main(int argc, char **argv)
 {
-    Loop loop;
-
     // mosquitto 1.5 uses rand() for client ID, seed it first
     char random_seed[sizeof(int)];
     getrandom(random_seed, sizeof(int), 0);
@@ -139,6 +141,11 @@ int main(int argc, char **argv)
         {
             Log::Message("uv timer");
             loop.RunIteration();
+
+            if (!mqagent->Poll()) {
+                Log::Error("mqtt connection lost in poll");
+                mqtt_connected = false;
+            }
 
             if (!mqtt_connected && !mqtt_broker.empty())
             {
